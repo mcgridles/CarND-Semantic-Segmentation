@@ -58,26 +58,26 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :return: The Tensor for the last layer of output
     """
 
-    mykernelinitializer = tf.truncated_normal_initializer(stddev=0.02)
+    kernel_init = tf.truncated_normal_initializer(stddev=0.02)
 
-    # prepare & upsample layer 7
-    fc7 = tf.layers.conv2d(vgg_layer7_out, num_classes, kernel_size=1, strides=(1, 1),
-                           kernel_initializer=mykernelinitializer)
-    fc7_up = tf.contrib.layers.conv2d_transpose(fc7, num_classes, kernel_size=4, stride=2, padding='SAME')
+    # Upsample layer 7
+    layer7_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, kernel_size=1, strides=(1, 1),
+                                  kernel_initializer=kernel_init)
+    upsample1 = tf.contrib.layers.conv2d_transpose(layer7_1x1, num_classes, kernel_size=4, stride=2, padding='same')
 
-    # prepare layer, skip & upsample 4
-    fc4 = tf.layers.conv2d(vgg_layer4_out, num_classes, kernel_size=1, strides=(1, 1),
-                           kernel_initializer=mykernelinitializer)
-    fc4_skip = tf.add(fc7_up, fc4)
-    fc4_up = tf.contrib.layers.conv2d_transpose(fc4_skip, num_classes, kernel_size=4, stride=2, padding='SAME')
+    # Skip & upsample 4
+    layer4_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, kernel_size=1, strides=(1, 1),
+                                  kernel_initializer=kernel_init)
+    skip1 = tf.add(upsample1, layer4_1x1)
+    upsample2 = tf.contrib.layers.conv2d_transpose(skip1, num_classes, kernel_size=4, stride=2, padding='same')
 
-    # prepare layer, skip & upsample 3
-    fc3 = tf.layers.conv2d(vgg_layer3_out, num_classes, kernel_size=1, strides=(1, 1),
-                           kernel_initializer=mykernelinitializer)
-    fc3_skip = tf.add(fc4_up, fc3)
-    fc3_up = tf.contrib.layers.conv2d_transpose(fc3_skip, num_classes, kernel_size=16, stride=8, padding='SAME')
+    # Skip & upsample 3
+    layer3_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, kernel_size=1, strides=(1, 1),
+                                  kernel_initializer=kernel_init)
+    skip2 = tf.add(upsample2, layer3_1x1)
+    upsample3 = tf.contrib.layers.conv2d_transpose(skip2, num_classes, kernel_size=16, stride=8, padding='same')
 
-    return output
+    return upsample3
 tests.test_layers(layers)
 
 
@@ -139,6 +139,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
             batch_num += 1
 
         time_delta = time.time() - time_start
+        print('')
         print('   completion time: {} s'.format(time_delta))
         print('   seconds per epoch: {}'.format(time_delta / (i+1)))
         print('')
@@ -154,7 +155,6 @@ def run():
 
     epochs = 20
     batch_size = 1
-
 
     # Download pretrained vgg model
     helper.maybe_download_pretrained_vgg(data_dir)
@@ -175,16 +175,17 @@ def run():
         labels = tf.placeholder(dtype=tf.float32)
         learning_rate = tf.placeholder(dtype=tf.float32)
 
-        # TODO: Build NN using load_vgg, layers, and optimize function
+        # Build NN using load_vgg, layers, and optimize function
         input_image, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
         layer_output = layers(layer3_out, layer4_out, layer7_out, num_classes)
         logits, train_op, cross_entropy_loss = optimize(layer_output, labels, learning_rate, num_classes)
 
-        # TODO: Train NN using the train_nn function
+        # Train NN using the train_nn function
+        sess.run(tf.global_variables_initializer())
         train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image, labels,
                  keep_prob, learning_rate)
 
-        # TODO: Save inference data using helper.save_inference_samples
+        # Save inference data using helper.save_inference_samples
         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
         # OPTIONAL: Apply the trained model to a video
